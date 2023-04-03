@@ -1,0 +1,25 @@
+authorName: default
+experimentName: sentiment
+trialConcurrency: 1 # Specify how many trials should be run concurrently.
+maxExecDuration: 24h # Limit the duration of this experiment if specified
+maxTrialNum: 100
+#choice: local, remote, pai
+trainingServicePlatform: local
+searchSpacePath: search_space.json # Path to the JSON file containing the search space.
+#choice: true, false
+useAnnotation: false
+tuner:
+  builtinTunerName: BatchTuner
+  classArgs:
+    #choice: maximize, minimize
+#    optimize_mode: maximize # Direction of optimization. Report our results to the nni, and if the results are test_acc/accuracy, then optimize_mode choose maximize. If the result reported is loss, optimize_mode choose minimize.
+trial:
+  command: python train.py # Command to launch trial.
+  codeDir: .
+  gpuNum: 1
+
+localConfig:
+  useActiveGpu: true # Default: False. Specify whether NNI should submit trials to GPUs occupied by other tasks.
+  maxTrialNumPerGpu: 3 # Default: 1. Specify how many trials can share one GPU.
+
+
