@@ -4,15 +4,12 @@ from torch.utils.data import DataLoader
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import f1_score, accuracy_score, precision_score, recall_score,roc_auc_score
 from imblearn.over_sampling import RandomOverSampler
-from transformers import RobertaTokenizer, RobertaModel
+from transformers import RobertaTokenizer, RobertaModel,BertModel,BertTokenizer
 import numpy as np
-from argparse import Namespace
+
+from torchtext.data import get_tokenizer
 
 def compute_tag_prob(result):
-    """
-    compute_tag_prob:
-        calculate probabilities of three sentiment tag through softmax
-    """
     prob=[]
     result = torch.softmax(result,-1)
     result = result.cpu().tolist()
@@ -20,10 +17,6 @@ def compute_tag_prob(result):
     return prob
 
 def compute_tag(result):
-    """
-    compute_tag:
-        select max probability from three sentiment tag as the result
-    """
     tag=[]
     result = result.cpu().tolist()
     for i in result:
@@ -31,10 +24,6 @@ def compute_tag(result):
     return tag
 
 def cal_prf(true_label,pred_label,tag_prob,mode):
-    """
-    cal_prf:
-        calculate presion, recall, and F1 score respectively in the 'ovo' mode
-    """
     acc = accuracy_score(true_label, pred_label)
     p = precision_score(true_label, pred_label, average=mode)
     r = recall_score(true_label, pred_label, average=mode)
@@ -42,11 +31,7 @@ def cal_prf(true_label,pred_label,tag_prob,mode):
     auc = roc_auc_score(true_label,tag_prob,multi_class='ovo')
     return acc,p,r,f1,auc
 
-def model_input(loader,train_label,input_ids,attention_masks,eeg_feature):
-    """
-    model_input:
-        Divide the data into batches according to the loader
-    """
+def model_input(loader,train_label,input_ids,attention_masks,eeg_feature):#
     batch_eeg_feature = tensor(eeg_feature[loader], dtype=torch.float32)
     batch_train_label = tensor(train_label[loader], dtype=torch.long)
     batch_input_ids = tensor(input_ids[loader], dtype=torch.long)
@@ -64,20 +49,16 @@ def model_input(loader,train_label,input_ids,attention_masks,eeg_feature):
     batch_attention_masks = batch_attention_masks[:,:max_len]
     return batch_train_label,batch_input_ids,batch_attention_masks,batch_eeg_feature
 def resample(train_input_ids,train_attention_masks,train_eeg_feature,train_label):
-    """
-    resample:
-        As the dataset is relatively small, data augmentation is achieved by resampling
-    """
     ros = RandomOverSampler(random_state=2)
     train_input_ids = np.expand_dims(train_input_ids, -1)
     train_attention_masks = np.expand_dims(train_attention_masks, -1)
     train_data = np.concatenate((train_eeg_feature, train_input_ids, train_attention_masks), -1)
     train_data = np.reshape(train_data, (320, -1))
     train_data, train_label = ros.fit_resample(train_data, train_label)
-    train_data = np.reshape(train_data, (-1, 43,290))
-    train_eeg_feature = train_data[:, :,0:288]
-    train_input_ids = train_data[:, :,288]
-    train_attention_masks = train_data[:, :,289]
+    train_data = np.reshape(train_data, (-1,43,295))
+    train_eeg_feature = train_data[:, :,0:293]
+    train_input_ids = train_data[:, :,293]
+    train_attention_masks = train_data[:, :,294]
     return train_eeg_feature,train_input_ids,train_attention_masks
 
 device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
@@ -92,7 +73,7 @@ with open("sentence.txt","r") as f:
 sentence = eval(sentence)
 
 print('Loading Roberta tokenizer...')
-tokenizer = RobertaTokenizer.from_pretrained('roberta-base')
+tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')
 input_ids = []
 attention_masks = []
 
@@ -119,13 +100,13 @@ train_eeg_feature,test_eeg_feature \
 train_eeg_feature, train_input_ids, train_attention_masks\
     =resample(train_input_ids,train_attention_masks,train_eeg_feature,train_label)
 params = {
-    "a":0.6,
-    "b":0.3,
-    "c":0.6
+    "a":0.9,
+    "b":0.1,
+    "c":0.4
 }
 setting = Settings()
-# optimized_params = nni.get_next_parameter()
-# params.update(optimized_params)
+optimized_params = nni.get_next_parameter()
+params.update(optimized_params)
 model = Model(setting).to(device)
 optimizer_cog = torch.optim.Adam(model.parameters(),betas=(0.9, 0.98), eps=1e-4, lr = 1e-5, weight_decay=1e-2)
 optimizer_word = torch.optim.Adam(model.parameters(),betas=(0.9, 0.98), eps=1e-4, lr = 1e-5, weight_decay=1e-2)
@@ -185,12 +166,12 @@ for one_epoch in range(setting.num_epoches):
     test_list.append(current_f)
     indicators_list.append(test_list)
     print(current_f)
-    # nni.report_intermediate_result(current_f)
+    nni.report_intermediate_result(current_f)
 
 final_f_list=[i[-1] for i in indicators_list]
 final_f = max(final_f_list)
 final_f_ind = final_f_list.index(final_f)
 print(final_f,indicators_list[final_f_ind])
-# nni.report_final_result(final_f)
+nni.report_final_result(final_f)
 
 
