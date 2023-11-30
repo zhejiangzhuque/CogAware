@@ -45,6 +45,8 @@ python preprocessing.py
 ```
 For simplification, the output data from the preprocessing can be found in the file ``CogAware/word_egg``
 
+ZAB_eeg_word.npy is the concatenated data of eye movement features and EEG features, used for model training and model performance testing, placed in the data folder.
+
 ## Run the script
 
 To run the script, use the following command:
