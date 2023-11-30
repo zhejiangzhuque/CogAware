@@ -3,16 +3,11 @@ from torch import nn
 from torch import tensor
 from torch.nn.functional import softmax
 from torch.autograd import Function
-from transformers import RobertaTokenizer, RobertaModel
+from transformers import RobertaTokenizer, RobertaModel,BertModel,BertTokenizer
 from torch.autograd import Variable
 import torch
 
-
 class GRL(Function):
-    """
-    GRL：
-        The gradient is reversed during the backpropagation
-    """
     @staticmethod
     def forward(ctx,i):
         result = i
@@ -24,37 +19,12 @@ class GRL(Function):
         return -grad_output*result
 
 class Settings():
-    """
-    Parameters:
-    ------------
-    batch_size:
-        The number of samples passed to the program for training at one time
-    word_size:
-        The dimensions of word embeddings from RoBERTa and the dimensions set for transformer encoder
-    cog_size:
-        The dimensions of cognitive signals input
-    task_class:
-        The number of sentiment classifications
-    num_epoches:
-        The number of iterations
-    word_head_num:
-        The number of multihead layers in word embeddings transformer encoder
-    word_layer_num:
-        The number of layers in word embeddings transformer encoder
-    cog_head_num:
-        The number of multihead layers in cognitive signals transformer encoder
-    cog_layer_num:
-        The number of layers in cognitive signals transformer encoder
-    adv_head_num:
-        The number of multihead layers in shared transformer encoder
-    adv_layer_num:
-        The number of layers in shared transformer encoder
-    """
     def __init__(self):
+        self.task = "sentiment"
         self.batch_size = 16
         self.dropout_prob = 0.3
         self.word_size = 300
-        self.cog_size = 288
+        self.cog_size = 293
         self.task_class = 3
         self.num_epoches = 70
         self.word_head_num = 6
@@ -64,11 +34,8 @@ class Settings():
         self.adv_head_num = 3
         self.adv_layer_num = 3
 
-class CogtoText(nn.Module):#set word_size to 300 dimension
-    """
-    CogtoText:
-        Transform the cognitive signal dimension to be consistent with the word embeddings
-    """
+
+class CogtoText(nn.Module):#set word_size to 768 dimension
     def __init__(self,setting):
         super(CogtoText, self).__init__()
         self.input_size = setting.cog_size
@@ -83,13 +50,9 @@ class CogtoText(nn.Module):#set word_size to 300 dimension
         return self.output
 
 class Bert_Word(nn.Module):
-    """
-    Bert_Word:
-        Extract word embeddings from RoBERTa
-    """
     def __init__(self,setting):
         super(Bert_Word, self).__init__()
-        self.bert = RobertaModel.from_pretrained('roberta-base',output_hidden_states=True)
+        self.bert = BertModel.from_pretrained('bert-base-uncased',output_hidden_states=True)
         self.wordto300 = nn.Linear(768,setting.word_size)
         self.relu = nn.ReLU()
         self.dropout = nn.Dropout(setting.dropout_prob)
@@ -103,10 +66,6 @@ class Bert_Word(nn.Module):
         return self.last_hidden_state, self.pooler_output
 
 class Spec_Word(nn.Module):
-    """
-    Spec_Word:
-        Through the specific layers of word embeddings, the model learns specific features from word embeddings and then purify specific features
-    """
     def __init__(self,setting):
         super(Spec_Word, self).__init__()
         self.encoder_layer = nn.TransformerEncoderLayer(d_model=setting.word_size,nhead=setting.word_head_num)
@@ -129,10 +88,6 @@ class Spec_Word(nn.Module):
         return self.input,self.loss
 
 class Com_Word(nn.Module):
-    """
-    Com_Word:
-        Through the shared layer of word embeddings, the com_word learns common features from word embeddings
-    """
     def __init__(self, setting):
         super(Com_Word, self).__init__()
         self.encoder_layer = nn.TransformerEncoderLayer(d_model=setting.word_size, nhead=setting.word_head_num)
@@ -150,10 +105,6 @@ class Com_Word(nn.Module):
         return self.output
 
 class Spec_Cog(nn.Module):
-    """
-    Spec_Cog:
-        Through the specific layers of cognitive signals, the model learns specific features from cognitive signals and then purify specific features
-    """
     def __init__(self, setting):
         super(Spec_Cog, self).__init__()
         self.encoder_layer = nn.TransformerEncoderLayer(d_model=setting.word_size, nhead=setting.cog_head_num)
@@ -177,10 +128,6 @@ class Spec_Cog(nn.Module):
         return self.input,self.loss
 
 class Com_Cog(nn.Module):
-    """
-    Com_Cog:
-        Through the shared layer of cognitive signals, the com_cog learns common features from cognitive signals
-    """
     def __init__(self, setting):
         super(Com_Cog, self).__init__()
         self.encoder_layer = nn.TransformerEncoderLayer(d_model=setting.word_size, nhead=setting.cog_head_num)
@@ -198,10 +145,6 @@ class Com_Cog(nn.Module):
         return self.output
 
 class Adv_Layer(nn.Module):
-    """
-    Adv_Layer:
-        Through GRL layer, conduct adversarial learning between discriminator and generator(shared layer)
-    """
     def __init__(self,setting):
         super(Adv_Layer, self).__init__()
         self.enconder_layer = nn.TransformerEncoderLayer(d_model=setting.word_size,nhead=setting.adv_head_num)
